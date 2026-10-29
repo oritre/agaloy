@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>עגלות קפה ביו"ש</title>
+<meta name="theme-color" content="#1f2a21">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Secular+One&family=Assistant:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>עגלות קפה ביו"ש</h1>
+  <div class="topActions">
+    <button id="installBtn" class="iconBtn" hidden>התקן</button>
+    <button id="newsBtn" class="iconBtn" aria-label="מה חדש">מה חדש<span id="newsBadge" class="badge" hidden></span></button>
+    <button id="setBtn" class="iconBtn" aria-label="הגדרות">⚙</button>
+  </div>
+</header>
+
+<div id="status" class="statusLine" role="status"></div>
+
+<main class="layout">
+  <section class="mapWrap">
+    <div id="map"></div>
+    <button id="locBtn" class="locBtn" aria-label="המיקום שלי">◎</button>
+  </section>
+
+  <section class="panel">
+    <div class="filters">
+      <div class="seg" role="group" aria-label="תצוגה">
+        <button data-mode="open" aria-pressed="true">פתוח עכשיו</button>
+        <button data-mode="active" aria-pressed="false">כל הפעילים</button>
+      </div>
+      <button id="closedBtn" class="chip" aria-pressed="false">+ סגורים זמנית/לצמיתות</button>
+      <select id="regSel" aria-label="אזור">
+        <option value="">כל האזורים</option>
+        <option>שומרון</option><option>בנימין</option><option>גוש עציון והר חברון</option><option>בקעה וים המלח</option>
+      </select>
+      <select id="kindSel" aria-label="סוג">
+        <option value="">חלבי ובשרי</option><option>חלבי</option><option>בשרי</option>
+      </select>
+      <input id="q" type="search" placeholder="חיפוש שם או יישוב" aria-label="חיפוש">
+    </div>
+    <div id="summary" class="summary"></div>
+    <ul id="list" class="list"></ul>
+  </section>
+</main>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheetInner" role="dialog" aria-modal="true" aria-labelledby="dName">
+    <button class="close" data-close aria-label="סגור">✕</button>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<div id="news" class="sheet" hidden>
+  <div class="sheetInner" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+    <button class="close" data-close aria-label="סגור">✕</button>
+    <h2 id="newsTitle">מה חדש</h2>
+    <p class="muted">שינויים שהאפליקציה זיהתה בגיליון ובגוגל מפות, מהחדש לישן.</p>
+    <ul id="newsList" class="newsList"></ul>
+  </div>
+</div>
+
+<div id="settings" class="sheet" hidden>
+  <div class="sheetInner" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <button class="close" data-close aria-label="סגור">✕</button>
+    <h2 id="setTitle">הגדרות</h2>
+    <label class="field">מפתח Google Maps (Places API)
+      <input id="keyIn" type="text" autocomplete="off" spellcheck="false" placeholder="AIza...">
+    </label>
+    <p class="muted" id="keyNote"></p>
+    <div class="row"><button id="keySave" class="btn primary">שמור מפתח</button><button id="refreshBtn" class="btn">רענן עכשיו מגוגל</button></div>
+    <dl id="syncInfo" class="syncInfo"></dl>
+    <p class="muted">מקור הנתונים: גיליון "פודטראקים/עגלות ביו"ש" ב-Google Sheets, וגוגל מפות. מפה: OpenStreetMap.</p>
+    <p class="muted"><a href="https://docs.google.com/spreadsheets/d/1BJO256iyHm4XSVaf3zZBj3BVo-tbkbvCDV1rntm8HJE/edit" target="_blank" rel="noopener">פתח את הגיליון</a></p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="data/seed.js"></script>
+<script src="data/westbank.js"></script>
+<script src="hours.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
