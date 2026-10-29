@@ -1,5 +1,5 @@
 // Google Maps Platform key (Places API New). Restrict it in Google Cloud to:
-//   Application restriction: Websites -> https://oritre.github.io/*
+//   Application restriction: Websites -> https://oritre.github.io/*  (app lives at /agaloy/)
 //   API restriction: Places API (New) only
 // An empty key keeps the app working from the sheet alone.
 const CONFIG = {
