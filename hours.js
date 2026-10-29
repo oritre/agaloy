@@ -60,19 +60,21 @@
     }
     const byDay = {};  // later groups override earlier ones for the days they name
     let approx = false;
+    const daysOnly = new Set();
     for (const g of groups) {
       let spans = g.times.slice();
       if (!spans.length && g.parts.length) {
         spans = [[Math.min(...g.parts.map(p => p[0])), Math.max(...g.parts.map(p => p[1]))]];
         approx = true;
       }
-      if (!spans.length) continue;
+      if (!spans.length) { g.days.forEach(d => daysOnly.add(d)); continue; }
       if (g.assumed) approx = true;
       g.days.forEach(d => { byDay[d] = spans; });
     }
     const periods = [];
     Object.keys(byDay).forEach(d => byDay[d].forEach(([s, e]) => periods.push({ d: +d, s, e })));
-    return periods.length ? { periods, approx } : null;
+    if (periods.length) return { periods, approx };
+    return daysOnly.size ? { periods: [], approx: true, days: [...daysOnly] } : null;
   }
 
   function fromGoogle(roh) {
@@ -96,6 +98,11 @@
   function state(h, now) {
     if (!h) return null;
     now = now || new Date();
+    if (!h.periods.length && h.days) {            // only the days are known ("פתוח א-ו")
+      const today = h.days.includes(now.getDay()), hr = now.getHours();
+      if (today && hr >= 7 && hr < 23) return { open: true, likely: true, label: "פתוח היום, שעות לא ידועות" };
+      return { open: false, label: today ? "כנראה סגור בשעה הזו" : "סגור היום" };
+    }
     const day = now.getDay(), mins = now.getHours() * 60 + now.getMinutes();
     const abs = day * 1440 + mins, WEEK = 7 * 1440;
     let openUntil = null, nextOpen = null;

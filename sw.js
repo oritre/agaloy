@@ -1,5 +1,5 @@
 // App shell offline cache. Sheet and Google API calls always go to the network.
-const VERSION = "agalot-v4";
+const VERSION = "agalot-v5";
 const SHELL = ["./", "index.html", "style.css", "app.js", "hours.js", "config.js", "data/seed.js", "data/westbank.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"];

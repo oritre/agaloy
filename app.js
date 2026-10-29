@@ -218,8 +218,8 @@ function computeStatus() {
     if (p.closure) { p.status = p.closure; p.stateLabel = p.closure === "perm" ? "נסגר לצמיתות" : "סגור זמנית"; continue; }
     const st = Hours.state(p.hours, t);
     if (!st) { p.status = "unknown"; p.stateLabel = "שעות לא ידועות"; continue; }
-    p.status = st.open ? "open" : "closed";
-    p.stateLabel = st.label + (p.hours.approx ? " (משוער)" : "");
+    p.status = st.likely ? "likely" : st.open ? "open" : "closed";
+    p.stateLabel = st.label + (p.hours.approx && !st.likely && p.hours.periods.length ? " (משוער)" : "");
   }
 }
 
@@ -317,7 +317,7 @@ const map = L.map("map", { zoomControl: false, preferCanvas: true, attributionCo
 L.control.zoom({ position: "topleft" }).addTo(map);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
 const layer = L.layerGroup().addTo(map);
-const COLORS = { open: "#2f8a4c", closed: "#c98a1a", unknown: "#8a948a", temp: "#7b5ea7", perm: "#3b3b3b" };
+const COLORS = { likely: "#86bf95", open: "#2f8a4c", closed: "#c98a1a", unknown: "#8a948a", temp: "#7b5ea7", perm: "#3b3b3b" };
 let markers = new Map(), selKey = null, fitted = false;
 
 /* ---------- my location ---------- */
@@ -359,7 +359,7 @@ $("#sortSel").onchange = e => { prefs.sort = e.target.value; savePrefs(); render
 $("#q").oninput = e => { prefs.q = e.target.value.trim(); render(); };
 
 function visible(p) {
-  const okStatus = p.status === "open" || (prefs.mode === "active" && (p.status === "closed" || p.status === "unknown")) || (prefs.closed && (p.status === "temp" || p.status === "perm"));
+  const okStatus = p.status === "open" || p.status === "likely" || (prefs.mode === "active" && (p.status === "closed" || p.status === "unknown")) || (prefs.closed && (p.status === "temp" || p.status === "perm"));
   if (!okStatus) return false;
   if (prefs.reg && p.region !== prefs.reg) return false;
   if (prefs.kind && p.kind !== prefs.kind) return false;
@@ -375,7 +375,7 @@ function render(refit) {
 
   let vis = PLACES.filter(visible);
   vis.forEach(p => p._d = me && p.lat != null ? km(me, p) : null);
-  const rank = { open: 0, closed: 1, unknown: 2, temp: 3, perm: 4 };
+  const rank = { open: 0, likely: 1, closed: 2, unknown: 3, temp: 4, perm: 5 };
   const rt = p => (p.g && p.g.rating) || 0;
   if (prefs.sort === "rating") vis.sort((a, b) => rt(b) - rt(a) || ((b.g && b.g.userRatingCount) || 0) - ((a.g && a.g.userRatingCount) || 0));
   else vis.sort((a, b) => me ? ((a._d ?? 1e9) - (b._d ?? 1e9)) : (rank[a.status] - rank[b.status] || a.name.localeCompare(b.name, "he")));
@@ -403,7 +403,7 @@ function render(refit) {
   const cnt = s => all.filter(p => p.status === s).length;
   const sum = $("#summary"); sum.innerHTML = "";
   if (prefs.mode === "open") {
-    sum.append(`${cnt("open")} פתוחים עכשיו`);
+    sum.append(`${cnt("open")} פתוחים עכשיו` + (cnt("likely") ? ` · ${cnt("likely")} פתוחים היום בשעות לא ידועות` : ""));
     const rest = cnt("closed") + cnt("unknown");
     if (rest) sum.append(" · ", h("button", { class: "linkBtn", onclick: () => { prefs.mode = "active"; savePrefs(); render(); } }, `עוד ${rest} סגורים עכשיו או בלי שעות ידועות`));
   } else sum.append(`${vis.length} מקומות · ${cnt("open")} פתוחים עכשיו`);
@@ -439,7 +439,7 @@ function openPlace(key, fly) {
   const waze = exact ? `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`
     : `https://waze.com/ul?q=${encodeURIComponent(p.waze && !/^https?:/.test(p.waze) ? p.waze : p.name + " " + p.loc)}&navigate=yes`;
   const gmaps = (g && g.googleMapsUri) || (exact ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + " " + p.loc)}`);
-  const hoursLines = g && g.regularOpeningHours && g.regularOpeningHours.weekdayDescriptions ? g.regularOpeningHours.weekdayDescriptions : (p.sHours ? Hours.describe(p.sHours) : []);
+  const hoursLines = g && g.regularOpeningHours && g.regularOpeningHours.weekdayDescriptions ? g.regularOpeningHours.weekdayDescriptions : (p.sHours && p.sHours.periods.length ? Hours.describe(p.sHours) : []);
   const pill = h("span", { class: "pill", style: `background:${COLORS[p.status]}` }, p.stateLabel);
   const body = $("#sheetBody"); body.innerHTML = "";
   body.append(...[
