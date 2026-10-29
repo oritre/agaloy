@@ -23,6 +23,7 @@
 </header>
 
 <div id="status" class="statusLine" role="status"></div>
+<div id="toast" class="toast" role="status" hidden></div>
 
 <main class="layout">
   <section class="mapWrap">
@@ -43,6 +44,9 @@
       </select>
       <select id="kindSel" aria-label="סוג">
         <option value="">חלבי ובשרי</option><option>חלבי</option><option>בשרי</option>
+      </select>
+      <select id="sortSel" aria-label="מיון">
+        <option value="near">מיון: קרוב אליי</option><option value="rating">מיון: דירוג בגוגל</option>
       </select>
       <input id="q" type="search" placeholder="חיפוש שם או יישוב" aria-label="חיפוש">
     </div>

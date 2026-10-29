@@ -229,7 +229,7 @@ function snapshot() {
   for (const p of PLACES) s[p.key] = {
     n: p.name, src: p.src, p: p.phone, sh: p.hoursText || "",
     gh: p.g && p.g.regularOpeningHours ? (p.g.regularOpeningHours.weekdayDescriptions || []).join("|") : "",
-    c: p.closure || ""
+    c: p.closure || "", r: p.g && p.g.rating || 0, rc: p.g && p.g.userRatingCount || 0
   };
   return s;
 }
@@ -245,6 +245,7 @@ function diffAndLog(reason) {
     if (a.sh && b.sh && a.sh !== b.sh) add("hours", k, b.n, "השעות בגיליון השתנו: " + b.sh);
     if (a.gh && b.gh && a.gh !== b.gh) add("hours", k, b.n, "השעות בגוגל מפות השתנו");
     if (a.p && b.p && a.p !== b.p) add("phone", k, b.n, "טלפון חדש: " + b.p);
+    if (a.rc && b.rc > a.rc) add("reviews", k, b.n, `${b.rc - a.rc} ביקורות חדשות בגוגל · דירוג ${b.r.toFixed(1)}` + (a.r && Math.abs(b.r - a.r) >= 0.1 ? ` (היה ${a.r.toFixed(1)})` : ""));
   }
   for (const k in prev) if (!cur[k] && prev[k].src === "sheet") add("removed", k, prev[k].n, "הוסר מהגיליון");
   store.set("log", log.slice(0, 200));
@@ -347,13 +348,14 @@ if (navigator.permissions) navigator.permissions.query({ name: "geolocation" }).
 if (me) showMe();
 
 /* ---------- filters & list ---------- */
-const prefs = Object.assign({ mode: "open", closed: false, reg: "", kind: "", q: "" }, store.get("prefs", {}));
+const prefs = Object.assign({ mode: "open", closed: false, reg: "", kind: "", sort: "near", q: "" }, store.get("prefs", {}));
 prefs.q = "";
-function savePrefs() { store.set("prefs", { mode: prefs.mode, closed: prefs.closed, reg: prefs.reg, kind: prefs.kind }); }
+function savePrefs() { store.set("prefs", { mode: prefs.mode, closed: prefs.closed, reg: prefs.reg, kind: prefs.kind, sort: prefs.sort }); }
 document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { prefs.mode = b.dataset.mode; savePrefs(); render(); });
 $("#closedBtn").onclick = () => { prefs.closed = !prefs.closed; savePrefs(); render(); };
 $("#regSel").onchange = e => { prefs.reg = e.target.value; savePrefs(); render(true); };
 $("#kindSel").onchange = e => { prefs.kind = e.target.value; savePrefs(); render(); };
+$("#sortSel").onchange = e => { prefs.sort = e.target.value; savePrefs(); render(); };
 $("#q").oninput = e => { prefs.q = e.target.value.trim(); render(); };
 
 function visible(p) {
@@ -369,12 +371,14 @@ function render(refit) {
   computeStatus();
   document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === prefs.mode));
   $("#closedBtn").setAttribute("aria-pressed", prefs.closed);
-  $("#regSel").value = prefs.reg; $("#kindSel").value = prefs.kind;
+  $("#regSel").value = prefs.reg; $("#kindSel").value = prefs.kind; $("#sortSel").value = prefs.sort;
 
   let vis = PLACES.filter(visible);
   vis.forEach(p => p._d = me && p.lat != null ? km(me, p) : null);
   const rank = { open: 0, closed: 1, unknown: 2, temp: 3, perm: 4 };
-  vis.sort((a, b) => me ? ((a._d ?? 1e9) - (b._d ?? 1e9)) : (rank[a.status] - rank[b.status] || a.name.localeCompare(b.name, "he")));
+  const rt = p => (p.g && p.g.rating) || 0;
+  if (prefs.sort === "rating") vis.sort((a, b) => rt(b) - rt(a) || ((b.g && b.g.userRatingCount) || 0) - ((a.g && a.g.userRatingCount) || 0));
+  else vis.sort((a, b) => me ? ((a._d ?? 1e9) - (b._d ?? 1e9)) : (rank[a.status] - rank[b.status] || a.name.localeCompare(b.name, "he")));
 
   // markers
   layer.clearLayers(); markers = new Map();
@@ -403,7 +407,7 @@ function render(refit) {
     const rest = cnt("closed") + cnt("unknown");
     if (rest) sum.append(" · ", h("button", { class: "linkBtn", onclick: () => { prefs.mode = "active"; savePrefs(); render(); } }, `עוד ${rest} סגורים עכשיו או בלי שעות ידועות`));
   } else sum.append(`${vis.length} מקומות · ${cnt("open")} פתוחים עכשיו`);
-  if (me) sum.append(" · ממוין לפי מרחק ממך");
+  if (prefs.sort === "rating") sum.append(" · ממוין לפי דירוג בגוגל"); else if (me) sum.append(" · ממוין לפי מרחק ממך");
 
   // list
   const list = $("#list"); list.innerHTML = "";
@@ -415,6 +419,7 @@ function render(refit) {
         h("b", {}, p.name, p.src === "google" ? h("span", { class: "newTag" }, "חדש בגוגל") : null),
         h("span", { class: "sub" }, [p.loc, p.stateLabel].filter(Boolean).join(" · "))),
       h("span", { class: "itSide" }, p._d != null ? h("span", { class: "dist" }, distText(p._d)) : null,
+        p.g && p.g.rating ? h("span", { class: "stars", title: `${p.g.rating} מתוך 5 · ${p.g.userRatingCount || 0} ביקורות בגוגל` }, "★ " + p.g.rating.toFixed(1)) : null,
         p.kind ? h("span", { class: "tag " + (p.kind === "בשרי" ? "m" : "d") }, p.kind) : null)));
   }
 }
@@ -452,14 +457,46 @@ function openPlace(key, fly) {
       p.kosher ? [h("dt", {}, "כשרות"), h("dd", {}, p.kosher)] : null,
       p.kind ? [h("dt", {}, "סוג"), h("dd", {}, h("span", { class: "tag " + (p.kind === "בשרי" ? "m" : "d") }, p.kind))] : null,
       p.special.length ? [h("dt", {}, "מה מיוחד"), h("dd", {}, p.special.join(" · "))] : null,
-      g && g.rating ? [h("dt", {}, "דירוג בגוגל"), h("dd", {}, `${g.rating} ★ (${g.userRatingCount || 0} ביקורות)`)] : null,
+      g && g.rating ? [h("dt", {}, "דירוג בגוגל"), h("dd", {}, starBar(g.rating), ` ${g.rating.toFixed(1)} · ${g.userRatingCount || 0} ביקורות`)] : null,
       g && g.formattedAddress ? [h("dt", {}, "כתובת"), h("dd", {}, g.formattedAddress)] : null),
     p.approx ? h("p", { class: "muted" }, "המיקום במפה משוער לפי היישוב. כפתור הוויז מחפש לפי השם.") : null,
     p.lat == null ? h("p", { class: "muted" }, "אין מיקום למקום הזה. כפתור הוויז מחפש לפי השם.") : null,
     !p.hours && !p.closure ? h("p", { class: "muted" }, "אין שעות פתיחה בגיליון או בגוגל, לכן לא ידוע אם פתוח עכשיו. כדאי להתקשר.") : null,
+    g && g.userRatingCount ? h("div", { class: "reviews", id: "reviews" }) : null,
     placeHistory(p.key)
   ].filter(Boolean));
+  if (g && g.userRatingCount) loadReviews(p);
   openSheet("#sheet");
+}
+function starBar(r) {
+  const pct = Math.max(0, Math.min(100, r / 5 * 100));
+  return h("span", { class: "starBar", role: "img", "aria-label": `${r} מתוך 5 כוכבים` }, h("span", { class: "starFill", style: `width:${pct}%` }, "★★★★★"), "★★★★★");
+}
+async function loadReviews(p) {
+  const box = $("#reviews"); if (!box) return;
+  const grev = store.get("grev", {}), c = grev[p.gid];
+  const draw = list => {
+    if (!$("#reviews") || selKey !== p.key) return;
+    box.innerHTML = "";
+    box.append(h("h3", {}, "ביקורות מגוגל מפות"));
+    if (!list || !list.length) { box.append(h("p", { class: "muted" }, "אין ביקורות להצגה.")); return; }
+    for (const r of list) {
+      const txt = (r.text && r.text.text) || (r.originalText && r.originalText.text) || "";
+      box.append(h("div", { class: "rev" },
+        h("div", { class: "revHead" }, starBar(r.rating || 0), h("b", {}, (r.authorAttribution && r.authorAttribution.displayName) || "משתמש"), h("span", { class: "muted" }, r.relativePublishTimeDescription || "")),
+        txt ? h("p", {}, txt.length > 420 ? txt.slice(0, 420) + "…" : txt) : null));
+    }
+    if (p.g && p.g.googleMapsUri) box.append(h("a", { class: "linkBtn", href: p.g.googleMapsUri, target: "_blank", rel: "noopener" }, "כל הביקורות בגוגל מפות"));
+  };
+  if (c && now() - c.at < 7 * DAY) return draw(c.list);
+  if (!gkey()) return;
+  box.append(h("p", { class: "muted" }, "טוען ביקורות…"));
+  try {
+    const j = await gFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(p.gid)}?languageCode=he&regionCode=IL`,
+      { headers: { "X-Goog-Api-Key": gkey(), "X-Goog-FieldMask": "reviews" } });
+    const list = (j.reviews || []).slice(0, 5);
+    grev[p.gid] = { at: now(), list }; store.set("grev", grev); draw(list);
+  } catch (e) { if (c) draw(c.list); else box.innerHTML = ""; }
 }
 function hoursLine(l) {
   const i = l.indexOf(":");
@@ -474,10 +511,23 @@ function placeHistory(key) {
 const fmtDate = t => new Date(t).toLocaleDateString("he-IL", { day: "numeric", month: "numeric" }) + " " + new Date(t).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 
 /* ---------- news ---------- */
-const EV_LABEL = { new: "חדש בגיליון", gnew: "חדש בגוגל מפות", removed: "הוסר", hours: "שעות", phone: "טלפון", perm: "נסגר לצמיתות", temp: "סגור זמנית", reopen: "חזר לפעול" };
+const EV_LABEL = { reviews: "ביקורות", new: "חדש בגיליון", gnew: "חדש בגוגל מפות", removed: "הוסר", hours: "שעות", phone: "טלפון", perm: "נסגר לצמיתות", temp: "סגור זמנית", reopen: "חזר לפעול" };
+function showToast() {
+  const seen = store.get("seen", 0), ev = store.get("log", []).filter(e => e.t > seen);
+  const t = $("#toast");
+  if (!ev.length) { t.hidden = true; return; }
+  const by = {}; ev.forEach(e => by[e.type] = (by[e.type] || 0) + 1);
+  const words = { new: "חדשים בגיליון", gnew: "חדשים בגוגל מפות", removed: "הוסרו", hours: "שינויי שעות", phone: "שינויי טלפון", perm: "נסגרו לצמיתות", temp: "סגורים זמנית", reopen: "חזרו לפעול", reviews: "עם ביקורות חדשות" };
+  t.innerHTML = "";
+  t.append(h("span", {}, "עדכונים: " + Object.keys(by).map(k => `${by[k]} ${words[k] || k}`).join(" · ")),
+    h("button", { class: "linkBtn", onclick: () => { t.hidden = true; $("#newsBtn").click(); } }, "הצג"),
+    h("button", { class: "toastX", "aria-label": "סגור", onclick: () => { t.hidden = true; } }, "✕"));
+  t.hidden = false;
+}
 function updateBadge() {
   const seen = store.get("seen", 0), n = store.get("log", []).filter(e => e.t > seen).length;
   const b = $("#newsBadge"); b.hidden = !n; b.textContent = n > 99 ? "99+" : n;
+  showToast();
 }
 $("#newsBtn").onclick = () => {
   const log = store.get("log", []), seen = store.get("seen", 0), ul = $("#newsList"); ul.innerHTML = "";
